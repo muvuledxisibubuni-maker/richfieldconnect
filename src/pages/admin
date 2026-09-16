@@ -1,0 +1,158 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Users, Briefcase, FileText, CalendarDays, Newspaper, Code2, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export default function Admin() {
+  const [tab, setTab] = useState("students");
+  const [data, setData] = useState({ students: [], recruiters: [], alumni: [], jobs: [], applications: [], events: [], posts: [], projects: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [users, jobs, apps, events, posts, projects] = await Promise.all([
+          base44.entities.User.list(),
+          base44.entities.Job.list(),
+          base44.entities.Application.list(),
+          base44.entities.Event.list(),
+          base44.entities.Post.list(),
+          base44.entities.Project.list(),
+        ]);
+        setData({
+          students: users.filter((u) => u.role === "student"),
+          recruiters: users.filter((u) => u.role === "recruiter"),
+          alumni: users.filter((u) => u.role === "alumni"),
+          jobs, applications: apps, events, posts, projects,
+        });
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const tabs = [
+    { value: "students", label: "Students", count: data.students.length },
+    { value: "recruiters", label: "Recruiters", count: data.recruiters.length },
+    { value: "alumni", label: "Alumni", count: data.alumni.length },
+    { value: "jobs", label: "Jobs", count: data.jobs.length },
+    { value: "applications", label: "Applications", count: data.applications.length },
+    { value: "posts", label: "Posts", count: data.posts.length },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="w-6 h-6 text-[#C8102E]" />
+        <div>
+          <h1 className="text-2xl font-bold text-[#0A1A3F]">Admin Dashboard</h1>
+          <p className="text-muted-foreground text-sm">Full oversight of students, recruiters, alumni, and platform activity.</p>
+        </div>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Students", value: data.students.length, icon: Users, color: "text-[#0A1A3F]" },
+          { label: "Recruiters", value: data.recruiters.length, icon: Briefcase, color: "text-[#C8102E]" },
+          { label: "Alumni", value: data.alumni.length, icon: Users, color: "text-emerald-600" },
+          { label: "Applications", value: data.applications.length, icon: FileText, color: "text-[#0A1A3F]" },
+        ].map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.label} className="bg-white rounded-xl p-4 shadow-sm border">
+              <Icon className={cn("w-5 h-5 mb-2", s.color)} />
+              <div className="text-2xl font-bold text-[#0A1A3F]">{s.value}</div>
+              <div className="text-xs text-muted-foreground">{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {tabs.map((t) => (
+          <button key={t.value} onClick={() => setTab(t.value)} className={cn("px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap", tab === t.value ? "bg-[#0A1A3F] text-white" : "bg-white border")}>
+            {t.label} ({t.count})
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          {tab === "students" && (
+            <UserTable users={data.students} type="student" />
+          )}
+          {tab === "recruiters" && (
+            <UserTable users={data.recruiters} type="recruiter" />
+          )}
+          {tab === "alumni" && (
+            <UserTable users={data.alumni} type="alumni" />
+          )}
+          {tab === "jobs" && (
+            <div className="divide-y">
+              {data.jobs.map((j) => (
+                <div key={j.id} className="p-4 flex justify-between items-center">
+                  <div>
+                    <div className="font-semibold text-sm">{j.title} · {j.company}</div>
+                    <div className="text-xs text-muted-foreground">R{j.salary_zar?.toLocaleString()} · {j.experience_level}</div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{j.is_active ? "Active" : "Closed"}</span>
+                </div>
+              ))}
+              {data.jobs.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">No jobs.</div>}
+            </div>
+          )}
+          {tab === "applications" && (
+            <div className="divide-y">
+              {data.applications.map((a) => (
+                <div key={a.id} className="p-4">
+                  <div className="font-semibold text-sm">{a.applicant_name} → {a.job_title}</div>
+                  <div className="text-xs text-muted-foreground">Skills: {a.skills?.join(", ") || "N/A"}</div>
+                  <div className="text-xs text-muted-foreground">Graduation: {a.graduation_date || "N/A"} · Badges: {a.badges?.join(", ") || "None"}</div>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 mt-1 inline-block">{a.status}</span>
+                </div>
+              ))}
+              {data.applications.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">No applications.</div>}
+            </div>
+          )}
+          {tab === "posts" && (
+            <div className="divide-y">
+              {data.posts.map((p) => (
+                <div key={p.id} className="p-4">
+                  <div className="text-xs text-muted-foreground">{p.author_name} · {p.author_role} · {p.category}</div>
+                  <div className="text-sm mt-1">{p.content}</div>
+                </div>
+              ))}
+              {data.posts.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">No posts.</div>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserTable({ users, type }) {
+  return (
+    <div className="divide-y">
+      {users.map((u) => (
+        <div key={u.id} className="p-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#0A1A3F] flex items-center justify-center text-white text-sm font-semibold">
+            {(u.full_name || u.email || "U").charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-sm truncate">{u.full_name || u.email}</div>
+            <div className="text-xs text-muted-foreground">
+              {type === "student" && `${u.student_number || ""} · ${u.campus || ""} · ${u.year_of_study || ""} year · ${u.faculty || ""}`}
+              {type === "recruiter" && `${u.company_name || ""} · ${u.address_verified ? "✓ Verified" : "Unverified"}`}
+              {type === "alumni" && `${u.qualification_level || "graduate"} · ${u.campus || ""}`}
+            </div>
+          </div>
+        </div>
+      ))}
+      {users.length === 0 && <div className="p-6 text-center text-sm text-muted-foreground">No {type}s.</div>}
+    </div>
+  );
+}
